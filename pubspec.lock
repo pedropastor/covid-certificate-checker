@@ -292,7 +292,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: b70c38a464cad476a2e5020ec22a0e38435f9dd9
+      resolved-ref: "7b3b311b1e7661931bb43b3a21f84c0e0d448ab2"
       url: "https://github.com/aguilaair/qr_code_scanner.git"
     source: git
     version: "0.6.2"
