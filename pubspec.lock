@@ -189,6 +189,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "0.6.3"
+  jsqr:
+    dependency: transitive
+    description:
+      name: jsqr
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.1.4"
   lints:
     dependency: transitive
     description:
@@ -283,10 +290,12 @@ packages:
   qr_code_scanner:
     dependency: "direct main"
     description:
-      name: qr_code_scanner
-      url: "https://pub.dartlang.org"
-    source: hosted
-    version: "0.6.1"
+      path: "."
+      ref: HEAD
+      resolved-ref: b70c38a464cad476a2e5020ec22a0e38435f9dd9
+      url: "https://github.com/aguilaair/qr_code_scanner.git"
+    source: git
+    version: "0.6.2"
   quiver:
     dependency: transitive
     description:
