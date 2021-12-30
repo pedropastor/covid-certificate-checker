@@ -8,7 +8,6 @@
 // ignore_for_file:prefer_single_quotes,comment_references, directives_ordering
 // ignore_for_file:annotate_overrides,prefer_generic_function_type_aliases
 // ignore_for_file:unused_import, file_names, avoid_escaping_inner_quotes
-// ignore_for_file:unnecessary_string_interpolations, unnecessary_string_escapes
 
 import 'package:intl/intl.dart';
 import 'package:intl/message_lookup_by_library.dart';
@@ -97,7 +96,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "validfrom": MessageLookupByLibrary.simpleMessage("Valid From"),
         "validuntil": MessageLookupByLibrary.simpleMessage("Valid Until"),
         "webwarntext": MessageLookupByLibrary.simpleMessage(
-            "CovCheck on the web may not offer the best experience, with some featires not working and performace being reduced. Please install the app on your phone."),
+            "CovCheck on the web may not offer the best experience, with some features not working and performace being reduced. Please install the app on your phone."),
         "webwarntitle": MessageLookupByLibrary.simpleMessage(
             "Warning: Web Experience may be limited"),
         "xageold": m1

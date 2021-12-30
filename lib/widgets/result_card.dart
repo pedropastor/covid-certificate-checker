@@ -7,7 +7,7 @@ import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 class ResultCard extends StatelessWidget {
   const ResultCard({
-    required this.barcodeResult,
+    //required this.barcodeResult,
     required this.coseResult,
     required this.dismiss,
     required this.processedResult,
@@ -15,7 +15,7 @@ class ResultCard extends StatelessWidget {
   }) : super(key: key);
 
   final CoseResult coseResult;
-  final Barcode barcodeResult;
+  //final Barcode barcodeResult;
   final Function dismiss;
   final Result? processedResult;
 

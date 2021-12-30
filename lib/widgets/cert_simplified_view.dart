@@ -8,30 +8,31 @@ import 'package:qr_code_scanner/qr_code_scanner.dart';
 class CertSimplifiedView extends StatelessWidget {
   const CertSimplifiedView({
     required this.coseResult,
-    required this.barcodeResult,
+    //required this.barcodeResult,
     required this.dismiss,
     required this.processedResult,
     Key? key,
   }) : super(key: key);
 
   final CoseResult? coseResult;
-  final Barcode? barcodeResult;
+  //final Barcode? barcodeResult;
   final Function dismiss;
   final Result? processedResult;
 
   @override
   Widget build(BuildContext context) {
-    if (coseResult != null &&
-        barcodeResult != null &&
+    if (coseResult != null // &&
+        //barcodeResult != null &&
         //processedResult != null &&
-        barcodeResult!.format == BarcodeFormat.qrcode) {
+        // barcodeResult!.format == BarcodeFormat.qrcode
+    ) {
       // Verified
       return Stack(
         alignment: AlignmentDirectional.center,
         children: [
           const EmptyResult(),
           ResultCard(
-            barcodeResult: barcodeResult!,
+            //barcodeResult: barcodeResult!,
             coseResult: coseResult!,
             dismiss: dismiss,
             processedResult: processedResult,

@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
-
+import 'package:honeywell_scanner/honeywell_scanner.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'generated/l10n.dart';
 
@@ -70,15 +70,53 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage>
+    with WidgetsBindingObserver
+    implements ScannerCallBack {
+  HoneywellScanner honeywellScanner = HoneywellScanner();
+
+  @override
+  void onDecoded(String? code) {
+    dismissResults();
+    List<int> scanres = [];
+    try {
+      /// Decode the base 45 data after removing the HC1: prefix
+      scanres = Base45.decode(code!.replaceAll("HC1:", ""));
+      /// Decode the gzip data which was decoded from the base45 string
+      scanres = gzipDecode(scanres);
+      /// Pass the data onto the Cose decoder where it will match it to a certificate (if valid)
+      var cose = Cose.decodeAndVerify(scanres, certMap);
+      setState(() {
+        /// Update the state and set cose and scanData
+        coseResult = cose;
+        scanres = scanres;
+
+        /// Process payload from cose and extract the data
+        processedResult = Result.fromDGC(cose.payload);
+      });
+    } catch (e) {
+      setState(() {
+        coseResult = CoseResult(
+            payload: {},
+            verified: false,
+            errorCode: CoseErrorCode.invalid_format,
+            certificate: null);
+        scanres = scanres;
+        processedResult = null;
+      });
+    }
+  }
+
+  @override
+  void onError(Exception error) {
+    dismissResults();
+  }
+
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
 
   /// Barcode Result will store the raw data and type of Barcode which has been scanned
   /// We are expecting a QR code, which starts with HC1
   Barcode? result;
-
-  /// QR Controller controls the reader and its state
-  QRViewController? controller;
 
   /// After successfull decoding, COSE Result will be populated with a valid certificate
   /// and the payload contained in the QR Code, processed and ready for the data
@@ -95,6 +133,12 @@ class _MyHomePageState extends State<MyHomePage> {
   /// Store if we should show the snackbar, only on web
   bool isWarningDismissed = false;
 
+  /// Honeywell scanner params
+  bool scannerEnabled = false;
+  bool scan1DFormats = false;
+  bool scan2DFormats = true;
+  bool isDeviceSupported = false;
+
   @override
   void initState() {
     /// Cycle through all of the certificates and extract the KID and X5C values, mapping them into certMap.
@@ -104,15 +148,10 @@ class _MyHomePageState extends State<MyHomePage> {
         certMap[element["kid"]] = element["x5c"][0];
       }
     });
+    WidgetsBinding.instance?.addObserver(this);
+    honeywellScanner.setScannerCallBack(this);
+    init();
     super.initState();
-  }
-
-  @override
-  void reassemble() {
-    /// In some cases we need to restart the camera when rotating and in development, thsi will do it for us
-    controller!.pauseCamera();
-    controller!.resumeCamera();
-    super.reassemble();
   }
 
   @override
@@ -120,125 +159,16 @@ class _MyHomePageState extends State<MyHomePage> {
     /// Get MediaQuery for size & orientation. Used for layout
     MediaQueryData mq = MediaQuery.of(context);
 
-    /// Oriantetion from mediaquery
+    /// Orientation from mediaquery
     Orientation orientation = mq.orientation;
 
     /// Size from mediaquery
     Size size = mq.size;
 
-    if (kIsWeb && !isWarningDismissed) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            content: Text(
-              S.of(context).webwarntext,
-            ),
-            title: Text(S.of(context).webwarntitle),
-            actions: [
-              TextButton(
-                  onPressed: () {
-                    isWarningDismissed = true;
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text("Ok"))
-            ],
-          );
-        },
-      );
-    }
-
     /// Main widget Stack, it is in a separtate varialble to make lasyouts much easier
     final widgetList = <Widget>[
       /// Logo will only be shown if in portrait, dunno whe it can go in landsacpe
       if (orientation == Orientation.portrait) const Logo(),
-
-      /// Camera Stack
-      Expanded(
-        flex: 1,
-        child: Stack(
-          alignment: Alignment.topRight,
-          children: [
-            /// Camera View
-            Container(
-              decoration:
-                  BoxDecoration(borderRadius: BorderRadius.circular(15)),
-              clipBehavior: Clip.antiAlias,
-              padding: const EdgeInsets.all(10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: QRView(
-                  key: qrKey,
-                  overlay: !kIsWeb
-                      ? QrScannerOverlayShape(
-                          cutOutWidth:
-                              min(size.width * 0.65, size.height * 0.65),
-                          cutOutHeight:
-                              min(size.width * 0.65, size.height * 0.65),
-                          borderRadius: 15,
-                          overlayColor: Colors.black.withAlpha(100))
-                      : null,
-                  onQRViewCreated: _onQRViewCreated,
-                ),
-              ),
-            ),
-
-            /// Utility buttons for changing camera, flash and restarting the camera if it crashes.
-            if (!kIsWeb)
-              Positioned(
-                right: 20,
-                top: 10,
-                child: Row(
-                  children: [
-                    /// Flash
-                    Tooltip(
-                      message: S.of(context).toggleflash,
-                      child: IconButton(
-                        onPressed: () {
-                          controller!.toggleFlash();
-                        },
-                        icon: const Icon(
-                          Icons.flash_on_rounded,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-
-                    /// Rotate/Change camera
-                    Tooltip(
-                      message: S.of(context).rotatecamera,
-                      child: IconButton(
-                        onPressed: () {
-                          controller!.flipCamera();
-                        },
-                        icon: const Icon(
-                          Icons.cameraswitch_rounded,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-
-                    /// Restart Camera
-                    Tooltip(
-                      message: S.of(context).restartcamera,
-                      child: IconButton(
-                        onPressed: () {
-                          controller!.pauseCamera();
-                          controller!.resumeCamera();
-                        },
-                        icon: const Icon(
-                          Icons.restart_alt_rounded,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-
       /// Details Section
       Expanded(
           flex: 1,
@@ -248,7 +178,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 : const EdgeInsets.only(right: 10),
             child: CertSimplifiedView(
               coseResult: coseResult,
-              barcodeResult: result,
+              //barcodeResult: result,
               dismiss: dismissResults,
               processedResult: processedResult,
             ),
@@ -276,56 +206,6 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  /// When the QR view becomes available this fuction will be invoked
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-
-    /// We listen to QR codes that might be sannned
-    controller.scannedDataStream.listen((scanData) {
-      /// Ignore all QR codes with are empty, do not start with HC1:, or are the same as the last scanned code.
-      if (scanData.code != null &&
-          scanData.code!.startsWith("HC1:") &&
-          scanData.code! != (result?.code)) {
-        /// Create variable to store gzip and base45 decoded data
-        List<int> scanres;
-        try {
-          /// Decode the base 45 data after removing the HC1: prefix
-          scanres = Base45.decode(scanData.code!.replaceAll("HC1:", ""));
-
-          /// Decode the gzip data which was decoded from the base45 string
-          scanres = gzipDecode(scanres);
-
-          /// Pass the data onto the Cose decoder where it will match it to a certificate (if valid)
-          var cose = Cose.decodeAndVerify(scanres, certMap);
-
-          /// Vibrate as we're done
-          HapticFeedback.lightImpact();
-
-          setState(() {
-            /// Update the state and set cose and scanData
-            coseResult = cose;
-            result = scanData;
-
-            /// Process payload from cose and extract the data
-            processedResult = Result.fromDGC(cose.payload);
-          });
-        } catch (e) {
-          /// If there are any issues assume QR was corrupted, set as invalid format.
-          HapticFeedback.lightImpact();
-          setState(() {
-            coseResult = CoseResult(
-                payload: {},
-                verified: false,
-                errorCode: CoseErrorCode.invalid_format,
-                certificate: null);
-            result = scanData;
-            processedResult = null;
-          });
-        }
-      }
-    });
-  }
-
   /// Utility function so that the dismissal clears the card
   void dismissResults() {
     setState(() {
@@ -335,10 +215,69 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        honeywellScanner.resumeScanner();
+        break;
+      case AppLifecycleState.inactive:
+        honeywellScanner.pauseScanner();
+        break;
+      case AppLifecycleState
+          .paused: //AppLifecycleState.paused is used as stopped state because deactivate() works more as a pause for lifecycle
+        honeywellScanner.pauseScanner();
+        break;
+      case AppLifecycleState.detached:
+        honeywellScanner.pauseScanner();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> init() async {
+    updateScanProperties();
+    isDeviceSupported = await honeywellScanner.isSupported();
+    await honeywellScanner.startScanner();
+    if (mounted) setState(() {});
+  }
+
+  void updateScanProperties() {
+    List<CodeFormat> codeFormats = [];
+    if (scan1DFormats) codeFormats.addAll(CodeFormatUtils.ALL_1D_FORMATS);
+    if (scan2DFormats) codeFormats.addAll(CodeFormatUtils.ALL_2D_FORMATS);
+
+//    codeFormats.add(CodeFormat.AZTEC);
+//    codeFormats.add(CodeFormat.CODABAR);
+//    codeFormats.add(CodeFormat.CODE_39);
+//    codeFormats.add(CodeFormat.CODE_93);
+//    codeFormats.add(CodeFormat.CODE_128);
+//    codeFormats.add(CodeFormat.DATA_MATRIX);
+//    codeFormats.add(CodeFormat.EAN_8);
+//    codeFormats.add(CodeFormat.EAN_13);
+//    codeFormats.add(CodeFormat.ITF);
+//    codeFormats.add(CodeFormat.MAXICODE);
+//    codeFormats.add(CodeFormat.PDF_417);
+//    codeFormats.add(CodeFormat.QR_CODE);
+//    codeFormats.add(CodeFormat.RSS_14);
+//    codeFormats.add(CodeFormat.RSS_EXPANDED);
+//    codeFormats.add(CodeFormat.UPC_A);
+//    codeFormats.add(CodeFormat.UPC_E);
+////    codeFormats.add(CodeFormat.UPC_EAN_EXTENSION);
+    Map<String, dynamic> properties = {
+      ...CodeFormatUtils.getAsPropertiesComplement(codeFormats),
+      'DEC_CODABAR_START_STOP_TRANSMIT': true,
+      'DEC_EAN13_CHECK_DIGIT_TRANSMIT': true,
+    };
+    honeywellScanner.setProperties(properties);
+  }
+
   /// When disposing, get rid of the QR Code controller too.
   @override
   void dispose() {
-    controller?.dispose();
+    honeywellScanner.stopScanner();
     super.dispose();
   }
 }
